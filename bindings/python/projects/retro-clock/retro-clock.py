@@ -500,7 +500,15 @@ class RetroClock(MatrixBase):
                     
                 # Handle manual flip trigger
                 if self.manual_flip_triggered:
-                    print("🔄 Manual change triggered - updating display")
+                    print("🔄 Manual animation triggered - forcing scroll animation for debugging")
+                    # Force animation even if time hasn't changed (for debugging)
+                    if self.animation_mode == "scroll_down":
+                        # Animate both hour and minute for visual effect
+                        self.scroll_down_change(current_hour, current_hour, is_hour=True)
+                        self.scroll_down_change(current_minute, current_minute, is_hour=False)
+                        animation_occurred = True
+                    else:
+                        print("🔄 Manual refresh (simple mode)")
                     self.manual_flip_triggered = False
                 
                 # Update previous values
