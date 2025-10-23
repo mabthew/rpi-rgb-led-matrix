@@ -297,6 +297,85 @@ class RetroClock(MatrixBase):
         self.draw_flip_time()
         self.swap()
     
+    def scroll_down_change_simultaneous(self, old_hour, new_hour, old_minute, new_minute):
+        """Animate both hour and minute changing simultaneously with synchronized scroll."""
+        print(f"📜🎬 Simultaneous scroll animation - hour: {old_hour} → {new_hour}, minute: {old_minute} → {new_minute}")
+        
+        # Define both window positions
+        hour_window = {'x': 6, 'y': 8, 'width': 22, 'height': 16}
+        minute_window = {'x': 36, 'y': 8, 'width': 22, 'height': 16}
+        
+        # Calculate text positioning for hour
+        old_hour_width = sum(self.digit_font.CharacterWidth(ord(char)) for char in old_hour if char != ' ')
+        new_hour_width = sum(self.digit_font.CharacterWidth(ord(char)) for char in new_hour if char != ' ')
+        old_hour_x = hour_window['x'] + (hour_window['width'] - old_hour_width) // 2
+        new_hour_x = hour_window['x'] + (hour_window['width'] - new_hour_width) // 2
+        
+        # Calculate text positioning for minute
+        old_minute_width = sum(self.digit_font.CharacterWidth(ord(char)) for char in old_minute if char != ' ')
+        new_minute_width = sum(self.digit_font.CharacterWidth(ord(char)) for char in new_minute if char != ' ')
+        old_minute_x = minute_window['x'] + (minute_window['width'] - old_minute_width) // 2
+        new_minute_x = minute_window['x'] + (minute_window['width'] - new_minute_width) // 2
+        
+        baseline_y = hour_window['y'] + 14  # Same baseline for both
+        
+        # Animate both windows simultaneously
+        frame_duration = self.scroll_duration / self.scroll_animation_frames
+        
+        for frame in range(self.scroll_animation_frames + 1):
+            # Calculate vertical offset for this frame
+            progress = frame / self.scroll_animation_frames
+            scroll_distance = hour_window['height'] + 8  # Same distance for both
+            scroll_offset = int(progress * scroll_distance)
+            
+            # Clear and redraw the entire display
+            self.clear()
+            self.draw_background_and_frame()
+            
+            # Calculate positions for all texts
+            old_hour_y = baseline_y + scroll_offset
+            new_hour_y = baseline_y - scroll_distance + scroll_offset
+            old_minute_y = baseline_y + scroll_offset
+            new_minute_y = baseline_y - scroll_distance + scroll_offset
+            
+            # Draw both black window backgrounds
+            for x in range(hour_window['x'], hour_window['x'] + hour_window['width']):
+                for y in range(hour_window['y'], hour_window['y'] + hour_window['height']):
+                    if 0 <= x < 64 and 0 <= y < 32:
+                        self.set_pixel(x, y, self.window_color)
+            
+            for x in range(minute_window['x'], minute_window['x'] + minute_window['width']):
+                for y in range(minute_window['y'], minute_window['y'] + minute_window['height']):
+                    if 0 <= x < 64 and 0 <= y < 32:
+                        self.set_pixel(x, y, self.window_color)
+            
+            # Draw the scrolling digits for both windows with clipping
+            self.draw_clipped_text(old_hour, old_hour_x, old_hour_y, hour_window)
+            self.draw_clipped_text(new_hour, new_hour_x, new_hour_y, hour_window)
+            self.draw_clipped_text(old_minute, old_minute_x, old_minute_y, minute_window)
+            self.draw_clipped_text(new_minute, new_minute_x, new_minute_y, minute_window)
+            
+            # Draw AM/PM indicator
+            if self.show_ampm:
+                now = self.get_current_time()
+                ampm = now.strftime("%p").lower()
+                ampm_x = 4
+                ampm_y = 7
+                current_x = ampm_x
+                for char in ampm:
+                    char_width = self.draw_text(self.ampm_font, current_x, ampm_y,
+                                              self.ampm_color, char)
+                    current_x += char_width
+            
+            self.swap()
+            time.sleep(frame_duration)
+        
+        # After animation, draw the final state normally
+        self.clear()
+        self.draw_background_and_frame() 
+        self.draw_flip_time()
+        self.swap()
+    
     def draw_clipped_text(self, text, text_x, text_y, window):
         """Draw text with pixel-perfect clipping to window boundaries."""
         # Only draw if the text might be visible in the window area
@@ -484,14 +563,24 @@ class RetroClock(MatrixBase):
                 # Handle time changes with selected animation mode
                 animation_occurred = False
                 
-                if hour_changed:
+                # Check if both hour and minute changed (like 2:59 → 3:00)
+                if hour_changed and minute_changed:
+                    if self.animation_mode == "simple":
+                        self.simple_change(self.previous_hour, current_hour, is_hour=True)
+                        self.simple_change(self.previous_minute, current_minute, is_hour=False)
+                    else:  # scroll_down - animate both simultaneously
+                        self.scroll_down_change_simultaneous(
+                            self.previous_hour, current_hour,
+                            self.previous_minute, current_minute
+                        )
+                        animation_occurred = True
+                elif hour_changed:
                     if self.animation_mode == "simple":
                         self.simple_change(self.previous_hour, current_hour, is_hour=True)
                     else:  # scroll_down
                         self.scroll_down_change(self.previous_hour, current_hour, is_hour=True)
                         animation_occurred = True
-                    
-                if minute_changed:
+                elif minute_changed:
                     if self.animation_mode == "simple":
                         self.simple_change(self.previous_minute, current_minute, is_hour=False)
                     else:  # scroll_down
