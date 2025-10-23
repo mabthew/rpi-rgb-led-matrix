@@ -315,48 +315,48 @@ class RetroClock(MatrixBase):
                 for y in range(max(0, window['y'] - 25), window['y']):
                     if 0 <= x < 64 and 0 <= y < 32:
                         # Determine what color this pixel should be (background or frame)
-                        if x <= 1 or x >= 62 or y <= 1 or y >= 30:
-                            self.set_pixel(x, y, self.background_color)
-                        elif x <= 2 or x >= 61 or y <= 2 or y >= 29:
-                            self.set_pixel(x, y, self.frame_color)
+                        if x == 0 or x == 63 or y == 0 or y == 31:
+                            self.set_pixel(x, y, self.background_color)  # Outer border
+                        elif x == 1 or x == 62 or y == 1 or y == 30:
+                            self.set_pixel(x, y, self.frame_color)  # White frame
                         else:
-                            self.set_pixel(x, y, self.background_color)
+                            self.set_pixel(x, y, self.background_color)  # Interior
             
             # Clear area below the window
             for x in range(max(0, window['x'] - 10), min(64, window['x'] + window['width'] + 10)):
                 for y in range(window['y'] + window['height'], min(32, window['y'] + window['height'] + 25)):
                     if 0 <= x < 64 and 0 <= y < 32:
                         # Determine what color this pixel should be (background or frame)
-                        if x <= 1 or x >= 62 or y <= 1 or y >= 30:
-                            self.set_pixel(x, y, self.background_color)
-                        elif x <= 2 or x >= 61 or y <= 2 or y >= 29:
-                            self.set_pixel(x, y, self.frame_color)
+                        if x == 0 or x == 63 or y == 0 or y == 31:
+                            self.set_pixel(x, y, self.background_color)  # Outer border
+                        elif x == 1 or x == 62 or y == 1 or y == 30:
+                            self.set_pixel(x, y, self.frame_color)  # White frame
                         else:
-                            self.set_pixel(x, y, self.background_color)
+                            self.set_pixel(x, y, self.background_color)  # Interior
             
             # Clear area to the left of the window
             for x in range(max(0, window['x'] - 10), window['x']):
                 for y in range(max(0, window['y'] - 5), min(32, window['y'] + window['height'] + 5)):
                     if 0 <= x < 64 and 0 <= y < 32:
                         # Determine what color this pixel should be (background or frame)
-                        if x <= 1 or x >= 62 or y <= 1 or y >= 30:
-                            self.set_pixel(x, y, self.background_color)
-                        elif x <= 2 or x >= 61 or y <= 2 or y >= 29:
-                            self.set_pixel(x, y, self.frame_color)
+                        if x == 0 or x == 63 or y == 0 or y == 31:
+                            self.set_pixel(x, y, self.background_color)  # Outer border
+                        elif x == 1 or x == 62 or y == 1 or y == 30:
+                            self.set_pixel(x, y, self.frame_color)  # White frame
                         else:
-                            self.set_pixel(x, y, self.background_color)
+                            self.set_pixel(x, y, self.background_color)  # Interior
             
             # Clear area to the right of the window
             for x in range(window['x'] + window['width'], min(64, window['x'] + window['width'] + 10)):
                 for y in range(max(0, window['y'] - 5), min(32, window['y'] + window['height'] + 5)):
                     if 0 <= x < 64 and 0 <= y < 32:
                         # Determine what color this pixel should be (background or frame)
-                        if x <= 1 or x >= 62 or y <= 1 or y >= 30:
-                            self.set_pixel(x, y, self.background_color)
-                        elif x <= 2 or x >= 61 or y <= 2 or y >= 29:
-                            self.set_pixel(x, y, self.frame_color)
+                        if x == 0 or x == 63 or y == 0 or y == 31:
+                            self.set_pixel(x, y, self.background_color)  # Outer border
+                        elif x == 1 or x == 62 or y == 1 or y == 30:
+                            self.set_pixel(x, y, self.frame_color)  # White frame
                         else:
-                            self.set_pixel(x, y, self.background_color)
+                            self.set_pixel(x, y, self.background_color)  # Interior
 
     def draw_static_digit(self, text, is_hour=True):
         """Draw a single digit group (hour or minute) in its normal position."""
