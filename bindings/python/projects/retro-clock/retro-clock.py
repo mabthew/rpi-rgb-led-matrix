@@ -25,6 +25,8 @@ Usage:
 import time
 import sys
 import os
+import argparse
+import json
 from datetime import datetime, timezone, timedelta
 
 try:
@@ -45,9 +47,12 @@ from config_manager import ConfigManager
 class RetroClock(MatrixBase):
     """Classic clock display with vintage 1970s aesthetic."""
     
-    def __init__(self):
+    def __init__(self, config_overrides=None):
         # Initialize configuration manager
         self.config = ConfigManager()
+        
+        # Configuration overrides from server or command line
+        self.config_overrides = config_overrides or {}
         
         # Initialize matrix with configuration from ConfigManager (handled by MatrixBase)
         super().__init__()
@@ -96,15 +101,20 @@ class RetroClock(MatrixBase):
             }
         }
         
-        # Current color theme
-        self.current_theme = 'orange'  # Default to classic orange
+        # Current color theme (configurable)
+        self.current_theme = self.config_overrides.get('color_theme', 'orange')
         self.update_colors()
+        
+        # Animation mode (configurable)
+        self.animation_mode = self.config_overrides.get('animation_mode', 'scroll_down')
+        
+        # AM/PM display (configurable) 
+        self.show_ampm = self.config_overrides.get('show_ampm', True)
         
         # Store previous time for flip detection
         self.previous_time = ""
         self.previous_hour = ""
         self.previous_minute = ""
-        self.show_ampm = True  # Option to show AM/PM
         
         # Animation configuration
         self.animation_mode = "simple"  # "simple" or "scroll_down"
@@ -734,6 +744,57 @@ class RetroClock(MatrixBase):
             self.clear()
 
 
-if __name__ == "__main__":
-    clock = RetroClock()
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='Retro LED Matrix Clock')
+    parser.add_argument('--color-theme', default='orange', 
+                        choices=['orange', 'light_gray', 'dark_green', 'light_blue'],
+                        help='Color theme for the clock')
+    parser.add_argument('--animation-mode', default='scroll_down',
+                        choices=['simple', 'scroll_down'], 
+                        help='Animation mode for time changes')
+    parser.add_argument('--no-ampm', action='store_true',
+                        help='Hide AM/PM indicator')
+    parser.add_argument('--config-file', 
+                        help='Load configuration from JSON file')
+    
+    # Add matrix configuration arguments (brightness, etc.)
+    parser.add_argument('--led-brightness', type=int, default=80,
+                        help='LED brightness (1-100)')
+    
+    return parser.parse_args()
+
+def load_config_file(config_file_path):
+    """Load configuration from JSON file."""
+    try:
+        with open(config_file_path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"⚠️ Error loading config file {config_file_path}: {e}")
+        return {}
+
+def main():
+    """Main function with configuration support."""
+    args = parse_args()
+    
+    # Build configuration from arguments
+    config_overrides = {
+        'color_theme': args.color_theme,
+        'animation_mode': args.animation_mode,
+        'show_ampm': not args.no_ampm,
+        'brightness': args.led_brightness
+    }
+    
+    # Load and merge config file if specified
+    if args.config_file:
+        file_config = load_config_file(args.config_file)
+        config_overrides.update(file_config)
+    
+    print(f"🎛️ Configuration: {config_overrides}")
+    
+    # Create and run clock with configuration
+    clock = RetroClock(config_overrides)
     clock.run()
+
+if __name__ == "__main__":
+    main()

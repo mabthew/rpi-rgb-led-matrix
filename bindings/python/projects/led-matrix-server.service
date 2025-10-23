@@ -1,0 +1,20 @@
+[Unit]
+Description=LED Matrix Server
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/pi/rpi-rgb-led-matrix/bindings/python/projects/led_matrix_server.py
+WorkingDirectory=/home/pi/rpi-rgb-led-matrix/bindings/python/projects
+User=root
+Group=root
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables if needed
+Environment=PYTHONPATH=/home/pi/rpi-rgb-led-matrix/bindings/python
+
+[Install]
+WantedBy=multi-user.target
