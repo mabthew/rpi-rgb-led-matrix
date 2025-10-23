@@ -58,7 +58,7 @@ class RetroClock(MatrixBase):
         
         # Load fonts - use the largest available for authentic flip clock look
         self.digit_font = self.font_manager.get_font('xxlarge')  # 9x18B for main digits
-        self.ampm_font = self.font_manager.get_font('tiny')      # 4x6 for AM/PM
+        self.ampm_font = self.font_manager.get_font('tom_thumb') # Extremely small for AM/PM
         
         # Authentic Twemco flip clock colors
         self.background_color = self.color_palette.get_color((200, 80, 0))    # Darker orange background
@@ -121,7 +121,7 @@ class RetroClock(MatrixBase):
             ampm = now.strftime("%p").lower()  # Use lowercase "am" like the original
             
             # Position AM/PM in upper left corner of the hour window
-            ampm_x = 8  # Just inside the hour window left edge
+            ampm_x = 7  # Just inside the hour window left edge
             ampm_y = 12  # Upper area of the hour window
             
             current_x = ampm_x
@@ -379,12 +379,12 @@ class RetroClock(MatrixBase):
             # Only clip areas OUTSIDE the windows, not the window borders themselves
             self.clip_outside_windows([hour_window, minute_window])
             
-            # Draw AM/PM indicator in upper left corner of hour window
+            # Draw AM/PM indicator
             if self.show_ampm:
                 now = self.get_current_time()
                 ampm = now.strftime("%p").lower()
-                ampm_x = 8  # Just inside the hour window left edge
-                ampm_y = 12  # Upper area of the hour window
+                ampm_x = 4
+                ampm_y = 7
                 current_x = ampm_x
                 for char in ampm:
                     char_width = self.draw_text(self.ampm_font, current_x, ampm_y,
