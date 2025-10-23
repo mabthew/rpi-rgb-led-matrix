@@ -345,11 +345,39 @@ class RetroClock(MatrixBase):
             self.draw_window_background(hour_window)
             self.draw_window_background(minute_window)
             
-            # Draw the scrolling digits for both windows with clipping
-            self.draw_clipped_text(old_hour, old_hour_x, old_hour_y, hour_window)
-            self.draw_clipped_text(new_hour, new_hour_x, new_hour_y, hour_window)
-            self.draw_clipped_text(old_minute, old_minute_x, old_minute_y, minute_window)
-            self.draw_clipped_text(new_minute, new_minute_x, new_minute_y, minute_window)
+            # Draw the scrolling digits for both windows - draw text first, then clip
+            # Draw all text first
+            if old_hour_y > hour_window['y'] - 20 and old_hour_y < hour_window['y'] + hour_window['height'] + 5:
+                current_x = old_hour_x
+                for char in old_hour:
+                    if char != ' ':
+                        char_width = self.draw_text(self.digit_font, current_x, old_hour_y, self.digit_color, char)
+                        current_x += char_width
+            
+            if new_hour_y > hour_window['y'] - 20 and new_hour_y < hour_window['y'] + hour_window['height'] + 5:
+                current_x = new_hour_x
+                for char in new_hour:
+                    if char != ' ':
+                        char_width = self.draw_text(self.digit_font, current_x, new_hour_y, self.digit_color, char)
+                        current_x += char_width
+            
+            if old_minute_y > minute_window['y'] - 20 and old_minute_y < minute_window['y'] + minute_window['height'] + 5:
+                current_x = old_minute_x
+                for char in old_minute:
+                    if char != ' ':
+                        char_width = self.draw_text(self.digit_font, current_x, old_minute_y, self.digit_color, char)
+                        current_x += char_width
+            
+            if new_minute_y > minute_window['y'] - 20 and new_minute_y < minute_window['y'] + minute_window['height'] + 5:
+                current_x = new_minute_x
+                for char in new_minute:
+                    if char != ' ':
+                        char_width = self.draw_text(self.digit_font, current_x, new_minute_y, self.digit_color, char)
+                        current_x += char_width
+            
+            # Now clip by redrawing window boundaries (without affecting the window interiors)
+            # Only clip areas OUTSIDE the windows, not the window borders themselves
+            self.clip_outside_windows([hour_window, minute_window])
             
             # Draw AM/PM indicator
             if self.show_ampm:
@@ -378,6 +406,44 @@ class RetroClock(MatrixBase):
             for y in range(window['y'], window['y'] + window['height']):
                 if 0 <= x < 64 and 0 <= y < 32:
                     self.set_pixel(x, y, self.window_color)
+    
+    def clip_outside_windows(self, windows):
+        """Clip any text that extends outside the specified windows by restoring background."""
+        # Define areas to check around the windows
+        for window in windows:
+            # Clear area above the window
+            for x in range(max(0, window['x'] - 5), min(64, window['x'] + window['width'] + 5)):
+                for y in range(max(0, window['y'] - 25), window['y']):
+                    if 0 <= x < 64 and 0 <= y < 32:
+                        # Don't touch pixels that are part of another window
+                        if not self.is_pixel_in_any_window(x, y, windows):
+                            if x == 0 or x == 63 or y == 0 or y == 31:
+                                self.set_pixel(x, y, self.background_color)
+                            elif x == 1 or x == 62 or y == 1 or y == 30:
+                                self.set_pixel(x, y, self.frame_color)
+                            else:
+                                self.set_pixel(x, y, self.background_color)
+            
+            # Clear area below the window
+            for x in range(max(0, window['x'] - 5), min(64, window['x'] + window['width'] + 5)):
+                for y in range(window['y'] + window['height'], min(32, window['y'] + window['height'] + 25)):
+                    if 0 <= x < 64 and 0 <= y < 32:
+                        # Don't touch pixels that are part of another window
+                        if not self.is_pixel_in_any_window(x, y, windows):
+                            if x == 0 or x == 63 or y == 0 or y == 31:
+                                self.set_pixel(x, y, self.background_color)
+                            elif x == 1 or x == 62 or y == 1 or y == 30:
+                                self.set_pixel(x, y, self.frame_color)
+                            else:
+                                self.set_pixel(x, y, self.background_color)
+    
+    def is_pixel_in_any_window(self, x, y, windows):
+        """Check if a pixel is inside any of the given windows."""
+        for window in windows:
+            if (window['x'] <= x < window['x'] + window['width'] and
+                window['y'] <= y < window['y'] + window['height']):
+                return True
+        return False
 
     def draw_clipped_text(self, text, text_x, text_y, window):
         """Draw text with pixel-perfect clipping to window boundaries."""
