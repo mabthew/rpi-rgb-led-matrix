@@ -262,32 +262,9 @@ class RetroClock(MatrixBase):
                     if 0 <= x < 64 and 0 <= y < 32:
                         self.set_pixel(x, y, self.window_color)
             
-            # Draw the old text scrolling down (if still partially visible)
-            if old_text_y > window['y'] - 20 and old_text_y < window['y'] + window['height'] + 5:
-                current_x = old_text_x
-                for char in old_text:
-                    if char != ' ':
-                        # Only draw if the character baseline is within reasonable bounds
-                        if old_text_y >= window['y'] - 5 and old_text_y <= window['y'] + window['height'] + 5:
-                            char_width = self.draw_text(self.digit_font, current_x, old_text_y,
-                                                      self.digit_color, char)
-                            current_x += char_width
-                        else:
-                            current_x += self.digit_font.CharacterWidth(ord(char))
-            
-            # Draw the new text scrolling down from above (if partially visible)
-            if new_text_y > window['y'] - 20 and new_text_y < window['y'] + window['height'] + 5:
-                current_x = new_text_x
-                for char in new_text:
-                    if char != ' ':
-                        # Only draw if the character baseline is within reasonable bounds
-                        if new_text_y >= window['y'] - 5 and new_text_y <= window['y'] + window['height'] + 5:
-                            char_width = self.draw_text(self.digit_font, current_x, new_text_y,
-                                                      self.digit_color, char)
-                            current_x += char_width
-                        else:
-                            current_x += self.digit_font.CharacterWidth(ord(char))
-            
+            # Draw the scrolling digits with proper clipping to window boundaries
+            self.draw_clipped_text(old_text, old_text_x, old_text_y, window)
+            self.draw_clipped_text(new_text, new_text_x, new_text_y, window)
             # Draw the non-changing digit in its normal position
             now = self.get_current_time()
             current_hour = now.strftime("%I").replace("0", " ", 1) if now.strftime("%I").startswith("0") else now.strftime("%I")
@@ -320,6 +297,67 @@ class RetroClock(MatrixBase):
         self.draw_flip_time()
         self.swap()
     
+    def draw_clipped_text(self, text, text_x, text_y, window):
+        """Draw text with pixel-perfect clipping to window boundaries."""
+        # Only draw if the text might be visible in the window area
+        if (text_y > window['y'] - 25 and text_y < window['y'] + window['height'] + 10):
+            # Draw the text normally first
+            current_x = text_x
+            for char in text:
+                if char != ' ':
+                    char_width = self.draw_text(self.digit_font, current_x, text_y,
+                                              self.digit_color, char)
+                    current_x += char_width
+            
+            # Now "clip" by redrawing background/frame over areas outside the window
+            # Clear area above the window
+            for x in range(max(0, window['x'] - 10), min(64, window['x'] + window['width'] + 10)):
+                for y in range(max(0, window['y'] - 25), window['y']):
+                    if 0 <= x < 64 and 0 <= y < 32:
+                        # Determine what color this pixel should be (background or frame)
+                        if x <= 1 or x >= 62 or y <= 1 or y >= 30:
+                            self.set_pixel(x, y, self.background_color)
+                        elif x <= 2 or x >= 61 or y <= 2 or y >= 29:
+                            self.set_pixel(x, y, self.frame_color)
+                        else:
+                            self.set_pixel(x, y, self.background_color)
+            
+            # Clear area below the window
+            for x in range(max(0, window['x'] - 10), min(64, window['x'] + window['width'] + 10)):
+                for y in range(window['y'] + window['height'], min(32, window['y'] + window['height'] + 25)):
+                    if 0 <= x < 64 and 0 <= y < 32:
+                        # Determine what color this pixel should be (background or frame)
+                        if x <= 1 or x >= 62 or y <= 1 or y >= 30:
+                            self.set_pixel(x, y, self.background_color)
+                        elif x <= 2 or x >= 61 or y <= 2 or y >= 29:
+                            self.set_pixel(x, y, self.frame_color)
+                        else:
+                            self.set_pixel(x, y, self.background_color)
+            
+            # Clear area to the left of the window
+            for x in range(max(0, window['x'] - 10), window['x']):
+                for y in range(max(0, window['y'] - 5), min(32, window['y'] + window['height'] + 5)):
+                    if 0 <= x < 64 and 0 <= y < 32:
+                        # Determine what color this pixel should be (background or frame)
+                        if x <= 1 or x >= 62 or y <= 1 or y >= 30:
+                            self.set_pixel(x, y, self.background_color)
+                        elif x <= 2 or x >= 61 or y <= 2 or y >= 29:
+                            self.set_pixel(x, y, self.frame_color)
+                        else:
+                            self.set_pixel(x, y, self.background_color)
+            
+            # Clear area to the right of the window
+            for x in range(window['x'] + window['width'], min(64, window['x'] + window['width'] + 10)):
+                for y in range(max(0, window['y'] - 5), min(32, window['y'] + window['height'] + 5)):
+                    if 0 <= x < 64 and 0 <= y < 32:
+                        # Determine what color this pixel should be (background or frame)
+                        if x <= 1 or x >= 62 or y <= 1 or y >= 30:
+                            self.set_pixel(x, y, self.background_color)
+                        elif x <= 2 or x >= 61 or y <= 2 or y >= 29:
+                            self.set_pixel(x, y, self.frame_color)
+                        else:
+                            self.set_pixel(x, y, self.background_color)
+
     def draw_static_digit(self, text, is_hour=True):
         """Draw a single digit group (hour or minute) in its normal position."""
         if is_hour:
