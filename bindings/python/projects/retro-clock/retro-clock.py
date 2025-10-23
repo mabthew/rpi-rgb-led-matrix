@@ -58,14 +58,47 @@ class RetroClock(MatrixBase):
         
         # Load fonts - use the largest available for authentic flip clock look
         self.digit_font = self.font_manager.get_font('xxlarge')  # 9x18B for main digits
-        self.ampm_font = self.font_manager.get_font('tom_thumb') # Extremely small for AM/PM
+        self.ampm_font = self.font_manager.get_font('tiny')      # 4x6 for AM/PM
         
-        # Authentic Twemco flip clock colors
-        self.background_color = self.color_palette.get_color((200, 80, 0))    # Darker orange background
-        self.frame_color = self.color_palette.get_color('white')               # White trim/frame
-        self.window_color = self.color_palette.get_color('black')              # Black digit windows
-        self.digit_color = self.color_palette.get_color('white')               # White digits
-        self.ampm_color = self.color_palette.get_color('white')                # White AM indicator
+        # Color theme configuration
+        self.color_themes = {
+            'orange': {
+                'name': 'Classic Orange',
+                'background': (200, 80, 0),     # Orange background
+                'frame': 'white',               # White frame
+                'window': 'black',              # Black digit windows
+                'digit': 'white',               # White digits
+                'ampm': 'white'                 # White AM/PM
+            },
+            'light_gray': {
+                'name': 'Light Gray',
+                'background': (220, 220, 210),  # Light beige/gray
+                'frame': (100, 100, 100),       # Dark gray frame
+                'window': 'black',              # Black digit windows
+                'digit': 'white',               # White digits
+                'ampm': 'white'                 # White AM/PM
+            },
+            'dark_green': {
+                'name': 'Dark Green',
+                'background': (60, 80, 50),     # Dark green background
+                'frame': (150, 200, 130),       # Light green frame
+                'window': 'black',              # Black digit windows
+                'digit': (150, 200, 130),       # Light green digits
+                'ampm': (150, 200, 130)         # Light green AM/PM
+            },
+            'light_blue': {
+                'name': 'Light Blue',
+                'background': (120, 150, 180),  # Light blue background
+                'frame': 'white',               # White frame
+                'window': (40, 60, 80),         # Dark blue windows
+                'digit': 'white',               # White digits
+                'ampm': 'white'                 # White AM/PM
+            }
+        }
+        
+        # Current color theme
+        self.current_theme = 'orange'  # Default to classic orange
+        self.update_colors()
         
         # Store previous time for flip detection
         self.previous_time = ""
@@ -116,13 +149,13 @@ class RetroClock(MatrixBase):
         # Draw the digit windows and digits
         self.draw_digit_windows(hour, minute)
         
-        # Draw AM/PM indicator in upper left corner of hour window
+        # Draw AM indicator (like the original - small text on orange background)
         if self.show_ampm:
             ampm = now.strftime("%p").lower()  # Use lowercase "am" like the original
             
-            # Position AM/PM in upper left corner of the hour window
-            ampm_x = 7  # Just inside the hour window left edge
-            ampm_y = 12  # Upper area of the hour window
+            # Position AM/PM in upper left area on orange background
+            ampm_x = 4
+            ampm_y = 7
             
             current_x = ampm_x
             for char in ampm:
@@ -279,11 +312,11 @@ class RetroClock(MatrixBase):
                 # Draw hour normally (not changing)  
                 self.draw_static_digit(current_hour, is_hour=True)
             
-            # Draw AM/PM indicator in upper left corner of hour window
+            # Draw AM/PM indicator
             if self.show_ampm:
                 ampm = now.strftime("%p").lower()
-                ampm_x = 8  # Just inside the hour window left edge
-                ampm_y = 12  # Upper area of the hour window
+                ampm_x = 4
+                ampm_y = 7
                 current_x = ampm_x
                 for char in ampm:
                     char_width = self.draw_text(self.ampm_font, current_x, ampm_y,
@@ -345,39 +378,11 @@ class RetroClock(MatrixBase):
             self.draw_window_background(hour_window)
             self.draw_window_background(minute_window)
             
-            # Draw the scrolling digits for both windows - draw text first, then clip
-            # Draw all text first
-            if old_hour_y > hour_window['y'] - 20 and old_hour_y < hour_window['y'] + hour_window['height'] + 5:
-                current_x = old_hour_x
-                for char in old_hour:
-                    if char != ' ':
-                        char_width = self.draw_text(self.digit_font, current_x, old_hour_y, self.digit_color, char)
-                        current_x += char_width
-            
-            if new_hour_y > hour_window['y'] - 20 and new_hour_y < hour_window['y'] + hour_window['height'] + 5:
-                current_x = new_hour_x
-                for char in new_hour:
-                    if char != ' ':
-                        char_width = self.draw_text(self.digit_font, current_x, new_hour_y, self.digit_color, char)
-                        current_x += char_width
-            
-            if old_minute_y > minute_window['y'] - 20 and old_minute_y < minute_window['y'] + minute_window['height'] + 5:
-                current_x = old_minute_x
-                for char in old_minute:
-                    if char != ' ':
-                        char_width = self.draw_text(self.digit_font, current_x, old_minute_y, self.digit_color, char)
-                        current_x += char_width
-            
-            if new_minute_y > minute_window['y'] - 20 and new_minute_y < minute_window['y'] + minute_window['height'] + 5:
-                current_x = new_minute_x
-                for char in new_minute:
-                    if char != ' ':
-                        char_width = self.draw_text(self.digit_font, current_x, new_minute_y, self.digit_color, char)
-                        current_x += char_width
-            
-            # Now clip by redrawing window boundaries (without affecting the window interiors)
-            # Only clip areas OUTSIDE the windows, not the window borders themselves
-            self.clip_outside_windows([hour_window, minute_window])
+            # Draw the scrolling digits for both windows with clipping
+            self.draw_clipped_text(old_hour, old_hour_x, old_hour_y, hour_window)
+            self.draw_clipped_text(new_hour, new_hour_x, new_hour_y, hour_window)
+            self.draw_clipped_text(old_minute, old_minute_x, old_minute_y, minute_window)
+            self.draw_clipped_text(new_minute, new_minute_x, new_minute_y, minute_window)
             
             # Draw AM/PM indicator
             if self.show_ampm:
@@ -406,44 +411,6 @@ class RetroClock(MatrixBase):
             for y in range(window['y'], window['y'] + window['height']):
                 if 0 <= x < 64 and 0 <= y < 32:
                     self.set_pixel(x, y, self.window_color)
-    
-    def clip_outside_windows(self, windows):
-        """Clip any text that extends outside the specified windows by restoring background."""
-        # Define areas to check around the windows
-        for window in windows:
-            # Clear area above the window
-            for x in range(max(0, window['x'] - 5), min(64, window['x'] + window['width'] + 5)):
-                for y in range(max(0, window['y'] - 25), window['y']):
-                    if 0 <= x < 64 and 0 <= y < 32:
-                        # Don't touch pixels that are part of another window
-                        if not self.is_pixel_in_any_window(x, y, windows):
-                            if x == 0 or x == 63 or y == 0 or y == 31:
-                                self.set_pixel(x, y, self.background_color)
-                            elif x == 1 or x == 62 or y == 1 or y == 30:
-                                self.set_pixel(x, y, self.frame_color)
-                            else:
-                                self.set_pixel(x, y, self.background_color)
-            
-            # Clear area below the window
-            for x in range(max(0, window['x'] - 5), min(64, window['x'] + window['width'] + 5)):
-                for y in range(window['y'] + window['height'], min(32, window['y'] + window['height'] + 25)):
-                    if 0 <= x < 64 and 0 <= y < 32:
-                        # Don't touch pixels that are part of another window
-                        if not self.is_pixel_in_any_window(x, y, windows):
-                            if x == 0 or x == 63 or y == 0 or y == 31:
-                                self.set_pixel(x, y, self.background_color)
-                            elif x == 1 or x == 62 or y == 1 or y == 30:
-                                self.set_pixel(x, y, self.frame_color)
-                            else:
-                                self.set_pixel(x, y, self.background_color)
-    
-    def is_pixel_in_any_window(self, x, y, windows):
-        """Check if a pixel is inside any of the given windows."""
-        for window in windows:
-            if (window['x'] <= x < window['x'] + window['width'] and
-                window['y'] <= y < window['y'] + window['height']):
-                return True
-        return False
 
     def draw_clipped_text(self, text, text_x, text_y, window):
         """Draw text with pixel-perfect clipping to window boundaries."""
@@ -563,6 +530,9 @@ class RetroClock(MatrixBase):
                     elif key == b's' or key == b'S':  # 'S' key to test simultaneous animation
                         self.test_simultaneous_animation = True
                         return True
+                    elif key == b'c' or key == b'C':  # 'C' key to cycle color themes
+                        self.cycle_color_theme()
+                        return True
             else:
                 # Unix/Linux implementation
                 if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
@@ -587,6 +557,9 @@ class RetroClock(MatrixBase):
                         return True
                     elif line == 's' or line == 'S':  # 'S' key to test simultaneous animation
                         self.test_simultaneous_animation = True
+                        return True
+                    elif line == 'c' or line == 'C':  # 'C' key to cycle color themes
+                        self.cycle_color_theme()
                         return True
         except:
             # Fallback - no input detection
@@ -617,6 +590,25 @@ class RetroClock(MatrixBase):
             print("🔄 Animation mode: Simple")
         print(f"Animation mode changed to: {self.animation_mode}")
     
+    def update_colors(self):
+        """Update colors based on current theme."""
+        theme = self.color_themes[self.current_theme]
+        self.background_color = self.color_palette.get_color(theme['background'])
+        self.frame_color = self.color_palette.get_color(theme['frame'])
+        self.window_color = self.color_palette.get_color(theme['window'])
+        self.digit_color = self.color_palette.get_color(theme['digit'])
+        self.ampm_color = self.color_palette.get_color(theme['ampm'])
+    
+    def cycle_color_theme(self):
+        """Cycle through available color themes."""
+        theme_keys = list(self.color_themes.keys())
+        current_index = theme_keys.index(self.current_theme)
+        next_index = (current_index + 1) % len(theme_keys)
+        self.current_theme = theme_keys[next_index]
+        self.update_colors()
+        theme_name = self.color_themes[self.current_theme]['name']
+        print(f"🎨 Color theme: {theme_name}")
+    
     def run(self):
         """Main display loop with flip animations."""
         print("🕰️  Starting Authentic Twemco-Style Clock - Press CTRL-C to stop")
@@ -626,10 +618,12 @@ class RetroClock(MatrixBase):
         print("   + = Increase brightness")
         print("   - = Decrease brightness")
         print("   A = Toggle animation mode (simple/scroll-down)")
+        print("   C = Cycle color themes")
         print("   H = Test HOUR animation only")
         print("   M = Test MINUTE animation only") 
         print("   S = Test SIMULTANEOUS animation (both)")
         print(f"🎬 Current animation mode: {self.animation_mode}")
+        print(f"🎨 Current color theme: {self.color_themes[self.current_theme]['name']}")
         
         # Initialize previous time values
         now = self.get_current_time()
