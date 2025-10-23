@@ -247,44 +247,21 @@ class RetroClock(MatrixBase):
             # Draw the changing digit(s) at scrolled position
             current_text_y = text_y + scroll_offset
             
-            # Only draw if any part of the text is still visible in the window
-            if current_text_y < window['y'] + window['height']:
-                # Save current canvas state for clipping
-                temp_canvas = []
-                for y in range(32):
-                    temp_canvas.append([])
-                    for x in range(64):
-                        temp_canvas[y].append(self.get_pixel(x, y))
-                
-                # Draw the scrolling text
+            # Draw the black window background first
+            for x in range(window['x'], window['x'] + window['width']):
+                for y in range(window['y'], window['y'] + window['height']):
+                    if 0 <= x < 64 and 0 <= y < 32:
+                        self.set_pixel(x, y, self.window_color)
+            
+            # Only draw the text if any part of it might be visible in the window
+            if current_text_y > window['y'] - 20 and current_text_y < window['y'] + window['height'] + 5:
+                # Draw the scrolling text - it will naturally be clipped by the window boundaries
                 current_x = text_x
                 for char in old_text:
                     if char != ' ':
                         char_width = self.draw_text(self.digit_font, current_x, current_text_y,
                                                   self.digit_color, char)
                         current_x += char_width
-                
-                # Clip pixels outside the window
-                for x in range(64):
-                    for y in range(32):
-                        # If we're outside the digit window, restore original background/frame
-                        if not (window['x'] <= x < window['x'] + window['width'] and 
-                                window['y'] <= y < window['y'] + window['height']):
-                            continue
-                        
-                        # If the scrolled text pixel is outside the window bounds, restore the black window
-                        if (x >= window['x'] and x < window['x'] + window['width'] and
-                            y >= window['y'] and y < window['y'] + window['height']):
-                            # Check if this pixel should show the scrolling digit
-                            pixel_color = self.get_pixel(x, y)
-                            # If it's a digit pixel that's outside the visible window area, make it black
-                            if (current_text_y > window['y'] + window['height'] or 
-                                current_text_y + 18 < window['y']):  # Font height is about 18 pixels
-                                self.set_pixel(x, y, self.window_color)
-                            elif pixel_color == self.digit_color:
-                                # Check if this digit pixel is within the visible window
-                                if y < window['y'] or y >= window['y'] + window['height']:
-                                    self.set_pixel(x, y, self.window_color)
             
             # Draw the non-changing digit in its normal position
             now = self.get_current_time()
