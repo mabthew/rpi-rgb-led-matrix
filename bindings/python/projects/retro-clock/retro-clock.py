@@ -1,13 +1,22 @@
 #!/usr/bin/env python
 """
-Retro Flip Clock - Classic 1970s Style LED Matrix Display
-
-A minimalist flip clock display inspired by vintage Twemco and similar designs:
-- Clean, blocky digit display mimicking flip cards
-- Simple black background with white digits
+Retro Clock - Classic Style LED Matrix         # Flip animation state
+        self.manual_flip_triggered = False
+        self.flip_animation_frames = 8  # Number of frames in flip animation
+        self.flip_duration = 0.4  # Total duration in seconds
+        
+        # Denver/Mountain Time timezone (UTC-7)
+        self.denver_timezone = timezone(timedelta(hours=-7))  # Mountain Standard Time
+        
+        print("🕰️  Retro Flip Clock initialized - Classic 1970s style")
+        print(f"Matrix size: {self.width}x{self.height}")
+        print("🏔️  Timezone: Denver/Mountain Time (UTC-7)")A minimalist clock display inspired by vintage Twemco and similar designs:
+- Clean, blocky digit display
+- Orange background with white frame and black digit windows
 - Hour:minute format in large, readable font
 - Classic proportions and spacing
 - Optional AM/PM indicator
+- Simple number changes with no complex animations
 
 Usage:
     sudo python retro-clock.py
@@ -16,25 +25,32 @@ Usage:
 import time
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+try:
+    import msvcrt  # Windows
+    WINDOWS = True
+except ImportError:
+    import select  # Unix/Linux
+    WINDOWS = False
 
 # Add shared components to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
 from matrix_base import MatrixBase
 from font_manager import FontManager
 from color_palette import ColorPalette
+from config_manager import ConfigManager
 
 
-class RetroFlipClock(MatrixBase):
-    """Classic flip clock display with vintage 1970s aesthetic."""
+class RetroClock(MatrixBase):
+    """Classic clock display with vintage 1970s aesthetic."""
     
     def __init__(self):
-        # Initialize matrix with standard configuration
-        super().__init__(
-            rows=32,
-            cols=64,
-            hardware_mapping='adafruit-hat-pwm'
-        )
+        # Initialize configuration manager
+        self.config = ConfigManager()
+        
+        # Initialize matrix with configuration from ConfigManager (handled by MatrixBase)
+        super().__init__()
         
         # Initialize shared components with clean default theme
         self.font_manager = FontManager()
@@ -45,7 +61,7 @@ class RetroFlipClock(MatrixBase):
         self.ampm_font = self.font_manager.get_font('tiny')      # 4x6 for AM/PM
         
         # Authentic Twemco flip clock colors
-        self.background_color = self.color_palette.get_color((255, 100, 50))  # Orange background
+        self.background_color = self.color_palette.get_color((200, 80, 0))    # Darker orange background
         self.frame_color = self.color_palette.get_color('white')               # White trim/frame
         self.window_color = self.color_palette.get_color('black')              # Black digit windows
         self.digit_color = self.color_palette.get_color('white')               # White digits
@@ -53,16 +69,32 @@ class RetroFlipClock(MatrixBase):
         
         # Store previous time for flip detection
         self.previous_time = ""
+        self.previous_hour = ""
+        self.previous_minute = ""
         self.show_ampm = True  # Option to show AM/PM
         
-        print("�️  Retro Flip Clock initialized - Classic 1970s style")
-        print(f"Matrix size: {self.width}x{self.height}")
+        # Flip animation state
+        self.manual_flip_triggered = False
+        self.flip_animation_frames = 8  # Number of frames in flip animation
+        self.flip_duration = 0.4  # Total duration in seconds
         
-
+        # Timezone configuration - Denver/Mountain Time
+        self.denver_timezone = timezone(timedelta(hours=-6))  # Mountain Time
+        
+        print("🕰️  Retro Flip Clock initialized - Classic 1970s style")
+        print(f"Matrix size: {self.width}x{self.height}")
+        print("�️  Timezone: Denver/Mountain Time")
     
+    def get_current_time(self):
+        """Get current time in Denver/Mountain timezone (UTC-6)."""
+        # Get UTC time and convert to Mountain Time (UTC-6)
+        utc_now = datetime.now(timezone.utc)
+        denver_time = utc_now.astimezone(self.denver_timezone)
+        return denver_time
+
     def draw_flip_time(self):
         """Draw time in authentic Twemco flip clock style with separate windows."""
-        now = datetime.now()
+        now = self.get_current_time()
         
         # Format time components separately
         hour = now.strftime("%I")
@@ -80,7 +112,7 @@ class RetroFlipClock(MatrixBase):
             
             # Position AM/PM in upper left area on orange background
             ampm_x = 4
-            ampm_y = 6
+            ampm_y = 7
             
             current_x = ampm_x
             for char in ampm:
@@ -89,26 +121,33 @@ class RetroFlipClock(MatrixBase):
                 current_x += char_width
     
     def draw_background_and_frame(self):
-        """Draw the orange background and white frame like a real Twemco clock."""
+        """Draw the orange background and dual frame like a real Twemco clock."""
         # Fill entire background with orange
         for x in range(64):
             for y in range(32):
                 self.set_pixel(x, y, self.background_color)
         
-        # Draw white frame border (2-pixel thick for visibility)
+        # Draw orange outer frame border (1-pixel thick)
         # Top and bottom borders
         for x in range(64):
-            self.set_pixel(x, 0, self.frame_color)
-            self.set_pixel(x, 1, self.frame_color)
-            self.set_pixel(x, 30, self.frame_color) 
-            self.set_pixel(x, 31, self.frame_color)
+            self.set_pixel(x, 0, self.background_color)
+            self.set_pixel(x, 31, self.background_color)
         
         # Left and right borders  
         for y in range(32):
-            self.set_pixel(0, y, self.frame_color)
+            self.set_pixel(0, y, self.background_color)
+            self.set_pixel(63, y, self.background_color)
+        
+        # Draw white inner frame border (1-pixel thick)
+        # Top and bottom borders
+        for x in range(1, 63):
+            self.set_pixel(x, 1, self.frame_color)
+            self.set_pixel(x, 30, self.frame_color)
+        
+        # Left and right borders  
+        for y in range(1, 31):
             self.set_pixel(1, y, self.frame_color)
             self.set_pixel(62, y, self.frame_color)
-            self.set_pixel(63, y, self.frame_color)
     
     def draw_digit_windows(self, hour_str, minute_str):
         """Draw black rectangular windows for the digits like flip cards."""
@@ -164,34 +203,119 @@ class RetroFlipClock(MatrixBase):
                                       self.digit_color, char)
             current_x += char_width
     
-
+    def simple_change(self, old_text, new_text, is_hour=True):
+        """Simply change from old number to new number - no animation."""
+        print(f"🔄 Changing {'hour' if is_hour else 'minute'}: {old_text} → {new_text}")
+        # The display will be updated in the main loop, so we don't need to do anything here
+        pass
+    
+    def check_for_input(self):
+        """Check for keyboard input in a non-blocking way (cross-platform)."""
+        try:
+            if WINDOWS:
+                # Windows implementation
+                if msvcrt.kbhit():
+                    key = msvcrt.getch()
+                    if key == b' ' or key == b'\r':  # Space or Enter key
+                        self.manual_flip_triggered = True
+                        return True
+                    elif key == b'+' or key == b'=':  # Plus key to increase brightness
+                        self.increase_brightness()
+                        return True
+                    elif key == b'-' or key == b'_':  # Minus key to decrease brightness
+                        self.decrease_brightness()
+                        return True
+            else:
+                # Unix/Linux implementation
+                if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
+                    line = sys.stdin.readline().strip()
+                    if line == ' ' or line == '':  # Space or Enter key
+                        self.manual_flip_triggered = True
+                        return True
+                    elif line == '+' or line == '=':  # Plus key to increase brightness
+                        self.increase_brightness()
+                        return True
+                    elif line == '-' or line == '_':  # Minus key to decrease brightness
+                        self.decrease_brightness()
+                        return True
+        except:
+            # Fallback - no input detection
+            pass
+        return False
+    
+    def increase_brightness(self):
+        """Increase brightness by 10%."""
+        current = self.matrix.brightness
+        new_brightness = min(100, current + 10)
+        self.set_brightness(new_brightness)
+        print(f"🔆 Brightness: {new_brightness}%")
+    
+    def decrease_brightness(self):
+        """Decrease brightness by 10%."""
+        current = self.matrix.brightness
+        new_brightness = max(1, current - 10)
+        self.set_brightness(new_brightness)
+        print(f"🔅 Brightness: {new_brightness}%")
     
     def run(self):
-        """Main display loop - simple and clean like a real flip clock."""
-        print("🕰️  Starting Authentic Twemco-Style Flip Clock - Press CTRL-C to stop")
+        """Main display loop with flip animations."""
+        print("🕰️  Starting Authentic Twemco-Style Clock - Press CTRL-C to stop")
         print("🧡 Orange background with white frame and black digit windows")
+        print("⌨️  Controls:")
+        print("   SPACE = Manual refresh")
+        print("   + = Increase brightness")
+        print("   - = Decrease brightness")
+        
+        # Initialize previous time values
+        now = self.get_current_time()
+        self.previous_hour = now.strftime("%I").replace("0", " ", 1) if now.strftime("%I").startswith("0") else now.strftime("%I")
+        self.previous_minute = now.strftime("%M")
         
         try:
             while True:
-                # Start with clean slate
-                self.clear()
+                # Get current time
+                now = self.get_current_time()
+                current_hour = now.strftime("%I").replace("0", " ", 1) if now.strftime("%I").startswith("0") else now.strftime("%I")
+                current_minute = now.strftime("%M")
                 
-                # Draw background, frame, and time windows
+                # Check for keyboard input
+                self.check_for_input()
+                
+                # Check if time changed or manual flip triggered
+                hour_changed = current_hour != self.previous_hour
+                minute_changed = current_minute != self.previous_minute
+                
+                # Simple notifications when time changes
+                if hour_changed:
+                    self.simple_change(self.previous_hour, current_hour, is_hour=True)
+                    
+                if minute_changed:
+                    self.simple_change(self.previous_minute, current_minute, is_hour=False)
+                    
+                # Handle manual flip trigger
+                if self.manual_flip_triggered:
+                    print("🔄 Manual change triggered - updating display")
+                    self.manual_flip_triggered = False
+                
+                # Update previous values
+                self.previous_hour = current_hour
+                self.previous_minute = current_minute
+                
+                # Draw normal time display
+                self.clear()
                 self.draw_background_and_frame()
                 self.draw_flip_time()
-                
-                # Update display
                 self.swap()
                 
-                # Update every second (like a real flip clock)
-                time.sleep(1.0)
+                # Update every 0.1 seconds for responsive input
+                time.sleep(0.1)
                 
         except KeyboardInterrupt:
-            print("\n�️  Flip clock stopped - Time stands still!")
+            print("\n⏰️  Clock stopped - Time stands still!")
         finally:
             self.clear()
 
 
 if __name__ == "__main__":
-    flip_clock = RetroFlipClock()
-    flip_clock.run()
+    clock = RetroClock()
+    clock.run()

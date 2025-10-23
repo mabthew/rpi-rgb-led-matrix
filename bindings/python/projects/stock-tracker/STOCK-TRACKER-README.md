@@ -1,204 +1,200 @@
-# Stock Tracker for RGB LED Matrix
+# Stock Tracker with Charts
 
-A real-time stock price display for your RGB LED matrix that shows scrolling stock prices with color-coded gains/losses.
+A sophisticated stock tracker that displays individual stocks with historical price charts, matching the professional layout shown in your reference image.
 
 ## Features
 
-- **Real-time Stock Data**: Uses Alpha Vantage API for current stock prices
-- **Color-coded Display**: Green for gains, red for losses, blue for prices
-- **Scrolling Text**: Smooth horizontal scrolling of multiple stock symbols
-- **Configurable**: Support for multiple stocks, refresh rates, and display options
-- **Demo Mode**: Built-in demo data for testing without API key
-- **Error Handling**: Robust error handling for network issues and API failures
-- **Multi-threaded**: Background data updates while maintaining smooth display
+✅ **Individual Stock Display**: Shows one stock at a time with full details  
+✅ **Professional Layout**: Symbol, price, change, percentage in organized quadrants  
+✅ **Historical Charts**: Mini price graphs showing 30+ days of movement  
+✅ **Dynamic Colors**: Green for gains, red for losses  
+✅ **Auto-cycling**: Rotates through multiple stocks automatically  
+✅ **Real-time Data**: Alpha Vantage API integration with fallback demo mode  
 
-## Setup
+## Display Layout
 
-### 1. Install Dependencies
+Based on your reference image, the display shows:
 
-```bash
-cd /path/to/rpi-rgb-led-matrix/bindings/python/samples
-pip install -r stock-requirements.txt
+```
+AAPL        0.87
+174.30     0.50%
+________________
+[Chart Graph Here]
 ```
 
-### 2. Get API Key (Optional)
+### Layout Details:
+- **Top Left**: Stock symbol (AAPL)
+- **Bottom Left**: Current price (174.30)
+- **Top Right**: Price change amount (0.87)
+- **Middle Right**: Change percentage (0.50%)
+- **Bottom**: Historical price chart (mini graph)
 
-1. Visit [Alpha Vantage](https://www.alphavantage.co/support/#api-key)
-2. Sign up for a free account
-3. Get your API key (free tier: 5 calls/minute, 500 calls/day)
+## Quick Start
 
-### 3. Configure Settings
-
-Copy the example configuration:
-```bash
-cp stock-tracker.env .env
-```
-
-Edit the `.env` file with your settings:
-```bash
-# Your Alpha Vantage API key
-ALPHA_VANTAGE_API_KEY=your_actual_key_here
-
-# Stock symbols to track (comma-separated)
-DEFAULT_STOCKS=AAPL,GOOGL,MSFT,TSLA,AMZN,NVDA
-
-# Update frequency (minutes) - respect API limits
-REFRESH_RATE=5
-
-# Display settings
-SCROLL_SPEED=0.05
-BRIGHTNESS=75
-```
-
-## Usage
-
-### Basic Usage (Demo Mode)
+### Demo Mode (No API Key Needed)
 ```bash
 sudo python stock-tracker.py --demo-mode
 ```
 
-### With API Key
+### With Real Data
 ```bash
-sudo python stock-tracker.py --api-key YOUR_API_KEY
-```
-
-### Custom Stock List
-```bash
-sudo python stock-tracker.py --stocks "AAPL,GOOGL,MSFT" --demo-mode
-```
-
-### Full Configuration
-```bash
-sudo python stock-tracker.py \
-  --api-key YOUR_API_KEY \
-  --stocks "AAPL,GOOGL,MSFT,TSLA,AMZN" \
-  --refresh-rate 10 \
-  --scroll-speed 0.03 \
-  --led-brightness 50
+sudo python stock-tracker.py --api-key YOUR_KEY --stocks "AAPL,GOOGL,MSFT,TSLA"
 ```
 
 ## Command Line Options
 
-### Stock Tracker Specific
+### Stock Tracker Options
+- `--display-time`: Seconds to show each stock (default: 10)
+- `--chart-days`: Days of historical data for charts (default: 30)
+- `--stocks`: Stock symbols to cycle through
+- `--demo-mode`: Use realistic demo data
 - `--api-key`: Alpha Vantage API key
-- `--stocks`: Comma-separated stock symbols (default: AAPL,GOOGL,MSFT,TSLA,AMZN)
-- `--refresh-rate`: Data refresh rate in minutes (default: 5)
-- `--scroll-speed`: Text scroll speed, lower = faster (default: 0.05)
-- `--demo-mode`: Use demo data instead of real API calls
-- `--config-file`: Path to configuration file (default: stock-tracker.env)
 
-### LED Matrix Options
-- `--led-rows`: Display rows (16 or 32, default: 32)
-- `--led-cols`: Panel columns (32 or 64, default: 32)
-- `--led-chain`: Number of daisy-chained panels (default: 1)
-- `--led-brightness`: Brightness level 1-100 (default: 100)
-- `--led-gpio-mapping`: Hardware mapping (regular, adafruit-hat, etc.)
+### Inherited Matrix Options
+- Matrix configuration automatically uses your 32x64 Adafruit HAT PWM setup
+- All standard LED matrix options available (`--led-brightness`, etc.)
 
-## Display Format
+## Color Coding
 
-The display shows information in this format:
+The display uses intelligent color coding:
+- **Bright Green**: Positive gains (symbol, price, change, chart)
+- **Bright Red**: Losses (symbol, price, change, chart)
+- **Dim Green/Red**: Chart lines and secondary elements
+- **White**: Loading states and neutral info
+
+## Chart Features
+
+### Historical Price Charts
+- Shows last 30-50 data points
+- Automatically scales to fit display area
+- Line color matches stock performance
+- Smooth line interpolation between points
+
+### Chart Data Sources
+- **Real Mode**: Daily closing prices from Alpha Vantage
+- **Demo Mode**: Realistic simulated price movements
+- **Fallback**: Uses demo data if API fails
+
+## Usage Examples
+
+### Basic Usage
+```bash
+# Show AAPL, GOOGL, MSFT with 10 second intervals
+sudo python stock-tracker.py --demo-mode --stocks "AAPL,GOOGL,MSFT"
 ```
-SYMBOL: $PRICE +/-$CHANGE (+/-PERCENT%)  |  SYMBOL: $PRICE...
+
+### Custom Configuration  
+```bash
+# 5-second intervals, 60 days of chart data
+sudo python stock-tracker.py \
+  --api-key YOUR_KEY \
+  --stocks "AAPL,TSLA,NVDA" \
+  --display-time 5 \
+  --chart-days 60
 ```
 
-### Color Coding
-- **White**: Stock symbols and separators
-- **Blue**: Current stock prices
-- **Green**: Positive changes (gains)
-- **Red**: Negative changes (losses)
-- **Yellow**: Status information
-
-### Example Display
-```
-AAPL: $150.25 +$2.15 (+1.4%)  |  GOOGL: $2,800.50 -$15.30 (-0.5%)
+### Quick Test
+```bash
+# Demo with single stock for testing
+sudo python stock-tracker.py --demo-mode --stocks "AAPL" --display-time 30
 ```
 
-## API Rate Limits
+## API Requirements
 
-**Alpha Vantage Free Tier:**
-- 5 API calls per minute
-- 500 API calls per day
+### For Real Data (Optional)
+1. Get free API key from [Alpha Vantage](https://www.alphavantage.co/support/#api-key)
+2. Free tier includes:
+   - 5 calls per minute
+   - 500 calls per day
+   - Historical daily data
 
-The stock tracker automatically:
-- Adds delays between API calls
-- Handles rate limit responses
+### Rate Limit Optimization
+- Fetches historical data once per symbol
+- Caches chart data to minimize API calls  
+- Respects API limits with delays
 - Falls back to demo data on errors
 
-For best results:
-- Use `--refresh-rate 5` or higher (minutes)
-- Limit stock symbols to 5-10 for free tier
-- Monitor your daily usage
+## Display Cycle
+
+The tracker automatically cycles through your configured stocks:
+
+1. **Stock 1** → Display for X seconds
+2. **Stock 2** → Display for X seconds  
+3. **Stock 3** → Display for X seconds
+4. **Return to Stock 1** → Repeat cycle
+
+### Timing Control
+- Use `--display-time 15` for 15 seconds per stock
+- Shorter times good for many stocks
+- Longer times better for detailed viewing
 
 ## Troubleshooting
 
 ### Common Issues
 
-**"No API key provided"**
-- Use `--demo-mode` for testing
-- Get free API key from alphavantage.co
-- Set API key in .env file or use `--api-key`
+**"No chart data"**
+- Historical data requires API key
+- Demo mode generates realistic chart data
+- Check API rate limits
 
-**"API Rate limit reached"**
-- Increase `--refresh-rate` to 10+ minutes
-- Reduce number of stock symbols
-- Wait for rate limit to reset
+**"Loading..." stuck**
+- Verify internet connection
+- Check API key validity
+- Try `--demo-mode` first
 
-**"Network error" or timeouts**
-- Check internet connection
-- Verify API key is correct
-- Try `--demo-mode` to test display
+**Chart not visible**
+- Charts appear in bottom 6 pixels
+- May be subtle with dim colors
+- Increase `--led-brightness`
 
-**No display or garbled text**
-- Check LED matrix wiring and power
-- Verify `--led-rows` and `--led-cols` settings
-- Try different `--led-gpio-mapping` options
+### Performance Tips
 
-### Debug Mode
-
-Add verbose output by modifying the script or using demo mode:
-```bash
-sudo python stock-tracker.py --demo-mode --scroll-speed 0.1
-```
+1. **Limit Stock Count**: 4-6 stocks work well
+2. **Reasonable Display Time**: 8-15 seconds per stock
+3. **Monitor API Usage**: Free tier has daily limits
+4. **Use Demo Mode**: For development and testing
 
 ## Customization
 
-### Adding New Stock Symbols
-
-1. Find the stock symbol (ticker) from Yahoo Finance or similar
-2. Add to your stock list: `--stocks "AAPL,GOOGL,YOUR_SYMBOL"`
-3. Test with demo mode first: `--demo-mode`
+### Adding More Stocks
+```bash
+--stocks "AAPL,GOOGL,MSFT,TSLA,AMZN,NVDA,META,NFLX"
+```
 
 ### Changing Colors
-
-Edit the `colors` dictionary in `stock-tracker.py`:
+Edit the `colors` dictionary in the code:
 ```python
 self.colors = {
-    'green': graphics.Color(0, 255, 0),    # Gains - change RGB values
-    'red': graphics.Color(255, 0, 0),      # Losses
-    'white': graphics.Color(255, 255, 255), # Neutral
-    'blue': graphics.Color(0, 150, 255),   # Prices
-    'yellow': graphics.Color(255, 255, 0)   # Status
+    'gain_bright': graphics.Color(0, 255, 0),     # Bright green
+    'loss_bright': graphics.Color(255, 0, 0),     # Bright red
+    # ... customize as needed
 }
 ```
 
-### Changing Display Format
+### Layout Modifications
+- Font sizes: Change `7x13.bdf` and `5x7.bdf` font files
+- Positioning: Modify x,y coordinates in the display code
+- Chart size: Adjust `chart_height` and `chart_width`
 
-Modify the `format_stock_display()` method to change:
-- Text layout and separators
-- Number formatting
-- Additional information display
+## Comparison with Basic Tracker
 
-## Performance Tips
+| Feature | Old Stock Tracker | Current Stock Tracker |
+|---------|-------------------|----------------------|
+| Layout | Scrolling text | Professional quadrant |
+| Stocks | All at once | One at a time |  
+| Charts | None | Historical graphs |
+| Colors | Simple coding | Dynamic performance |
+| API Calls | Current quotes only | Quotes + historical |
 
-1. **Optimize Refresh Rate**: Don't update too frequently
-2. **Limit Symbols**: 5-10 stocks work well for free API
-3. **Use Appropriate Hardware**: Ensure adequate power supply
-4. **Monitor Resource Usage**: Check CPU and memory on Pi
+## Example Output
 
-## License
+The display will show something like:
+```
+AAPL        +2.15
+174.30     +1.24%
+▄▅▆▅▄▅▆▇▆▅▄▅▆▇█▇▆
+```
 
-This stock tracker follows the same license as the rpi-rgb-led-matrix library.
+Where the bottom line represents the price chart over time.
 
-## Disclaimer
-
-This software is for educational and personal use only. Stock prices are provided by third-party APIs and may be delayed. Do not use for financial trading decisions. Always verify information from official sources.
+This stock tracker provides a much more professional and informative stock display that matches modern trading interfaces!
