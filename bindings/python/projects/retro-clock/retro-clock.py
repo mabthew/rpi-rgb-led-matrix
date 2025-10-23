@@ -73,10 +73,15 @@ class RetroClock(MatrixBase):
         self.previous_minute = ""
         self.show_ampm = True  # Option to show AM/PM
         
-        # Flip animation state
+        # Animation configuration
+        self.animation_mode = "simple"  # "simple" or "scroll_down"
         self.manual_flip_triggered = False
         self.flip_animation_frames = 8  # Number of frames in flip animation
         self.flip_duration = 0.4  # Total duration in seconds
+        
+        # Scroll animation parameters
+        self.scroll_animation_frames = 20  # Number of frames for scroll animation
+        self.scroll_duration = 0.6  # Total duration for scroll animation in seconds
         
         # Timezone configuration - Denver/Mountain Time
         self.denver_timezone = timezone(timedelta(hours=-6))  # Mountain Time
@@ -209,6 +214,139 @@ class RetroClock(MatrixBase):
         # The display will be updated in the main loop, so we don't need to do anything here
         pass
     
+    def scroll_down_change(self, old_text, new_text, is_hour=True):
+        """Animate the changing digit scrolling down out of frame."""
+        print(f"📜 Scroll animation - {'hour' if is_hour else 'minute'}: {old_text} → {new_text}")
+        
+        # Define window positions based on which digit is changing
+        if is_hour:
+            window = {'x': 6, 'y': 8, 'width': 22, 'height': 16}
+        else:
+            window = {'x': 36, 'y': 8, 'width': 22, 'height': 16}
+        
+        # Calculate text positioning within the window
+        text_width = 0
+        for char in old_text:
+            if char != ' ':
+                text_width += self.digit_font.CharacterWidth(ord(char))
+        
+        text_x = window['x'] + (window['width'] - text_width) // 2
+        text_y = window['y'] + 14  # Baseline position
+        
+        # Animate scrolling down
+        frame_duration = self.scroll_duration / self.scroll_animation_frames
+        
+        for frame in range(self.scroll_animation_frames + 1):
+            # Calculate vertical offset for this frame
+            scroll_offset = int((frame / self.scroll_animation_frames) * (window['height'] + 5))
+            
+            # Clear and redraw the entire display
+            self.clear()
+            self.draw_background_and_frame()
+            
+            # Draw the changing digit(s) at scrolled position
+            current_text_y = text_y + scroll_offset
+            
+            # Only draw if any part of the text is still visible in the window
+            if current_text_y < window['y'] + window['height']:
+                # Save current canvas state for clipping
+                temp_canvas = []
+                for y in range(32):
+                    temp_canvas.append([])
+                    for x in range(64):
+                        temp_canvas[y].append(self.get_pixel(x, y))
+                
+                # Draw the scrolling text
+                current_x = text_x
+                for char in old_text:
+                    if char != ' ':
+                        char_width = self.draw_text(self.digit_font, current_x, current_text_y,
+                                                  self.digit_color, char)
+                        current_x += char_width
+                
+                # Clip pixels outside the window
+                for x in range(64):
+                    for y in range(32):
+                        # If we're outside the digit window, restore original background/frame
+                        if not (window['x'] <= x < window['x'] + window['width'] and 
+                                window['y'] <= y < window['y'] + window['height']):
+                            continue
+                        
+                        # If the scrolled text pixel is outside the window bounds, restore the black window
+                        if (x >= window['x'] and x < window['x'] + window['width'] and
+                            y >= window['y'] and y < window['y'] + window['height']):
+                            # Check if this pixel should show the scrolling digit
+                            pixel_color = self.get_pixel(x, y)
+                            # If it's a digit pixel that's outside the visible window area, make it black
+                            if (current_text_y > window['y'] + window['height'] or 
+                                current_text_y + 18 < window['y']):  # Font height is about 18 pixels
+                                self.set_pixel(x, y, self.window_color)
+                            elif pixel_color == self.digit_color:
+                                # Check if this digit pixel is within the visible window
+                                if y < window['y'] or y >= window['y'] + window['height']:
+                                    self.set_pixel(x, y, self.window_color)
+            
+            # Draw the non-changing digit in its normal position
+            now = self.get_current_time()
+            current_hour = now.strftime("%I").replace("0", " ", 1) if now.strftime("%I").startswith("0") else now.strftime("%I")
+            current_minute = now.strftime("%M")
+            
+            if is_hour:
+                # Draw minute normally (not changing)
+                self.draw_static_digit(current_minute, is_hour=False)
+            else:
+                # Draw hour normally (not changing)  
+                self.draw_static_digit(current_hour, is_hour=True)
+            
+            # Draw AM/PM indicator
+            if self.show_ampm:
+                ampm = now.strftime("%p").lower()
+                ampm_x = 4
+                ampm_y = 7
+                current_x = ampm_x
+                for char in ampm:
+                    char_width = self.draw_text(self.ampm_font, current_x, ampm_y,
+                                              self.ampm_color, char)
+                    current_x += char_width
+            
+            self.swap()
+            time.sleep(frame_duration)
+        
+        # After animation, draw the new digit in place
+        self.clear()
+        self.draw_background_and_frame() 
+        self.draw_flip_time()
+        self.swap()
+    
+    def draw_static_digit(self, text, is_hour=True):
+        """Draw a single digit group (hour or minute) in its normal position."""
+        if is_hour:
+            window = {'x': 6, 'y': 8, 'width': 22, 'height': 16}
+        else:
+            window = {'x': 36, 'y': 8, 'width': 22, 'height': 16}
+        
+        # Draw window background
+        for x in range(window['x'], window['x'] + window['width']):
+            for y in range(window['y'], window['y'] + window['height']):
+                if 0 <= x < 64 and 0 <= y < 32:
+                    self.set_pixel(x, y, self.window_color)
+        
+        # Draw digits
+        text_width = 0
+        for char in text:
+            if char != ' ':
+                text_width += self.digit_font.CharacterWidth(ord(char))
+        
+        text_x = window['x'] + (window['width'] - text_width) // 2
+        text_y = window['y'] + 14
+        
+        current_x = text_x
+        for char in text:
+            if char != ' ':
+                char_width = self.draw_text(self.digit_font, current_x, text_y,
+                                          self.digit_color, char)
+                current_x += char_width
+    
     def check_for_input(self):
         """Check for keyboard input in a non-blocking way (cross-platform)."""
         try:
@@ -225,6 +363,9 @@ class RetroClock(MatrixBase):
                     elif key == b'-' or key == b'_':  # Minus key to decrease brightness
                         self.decrease_brightness()
                         return True
+                    elif key == b'a' or key == b'A':  # 'A' key to toggle animation mode
+                        self.toggle_animation_mode()
+                        return True
             else:
                 # Unix/Linux implementation
                 if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
@@ -237,6 +378,9 @@ class RetroClock(MatrixBase):
                         return True
                     elif line == '-' or line == '_':  # Minus key to decrease brightness
                         self.decrease_brightness()
+                        return True
+                    elif line == 'a' or line == 'A':  # 'A' key to toggle animation mode
+                        self.toggle_animation_mode()
                         return True
         except:
             # Fallback - no input detection
@@ -257,6 +401,16 @@ class RetroClock(MatrixBase):
         self.set_brightness(new_brightness)
         print(f"🔅 Brightness: {new_brightness}%")
     
+    def toggle_animation_mode(self):
+        """Toggle between simple and scroll-down animation modes."""
+        if self.animation_mode == "simple":
+            self.animation_mode = "scroll_down"
+            print("📜 Animation mode: Scroll Down")
+        else:
+            self.animation_mode = "simple"
+            print("🔄 Animation mode: Simple")
+        print(f"Animation mode changed to: {self.animation_mode}")
+    
     def run(self):
         """Main display loop with flip animations."""
         print("🕰️  Starting Authentic Twemco-Style Clock - Press CTRL-C to stop")
@@ -265,6 +419,8 @@ class RetroClock(MatrixBase):
         print("   SPACE = Manual refresh")
         print("   + = Increase brightness")
         print("   - = Decrease brightness")
+        print("   A = Toggle animation mode (simple/scroll-down)")
+        print(f"🎬 Current animation mode: {self.animation_mode}")
         
         # Initialize previous time values
         now = self.get_current_time()
@@ -285,12 +441,22 @@ class RetroClock(MatrixBase):
                 hour_changed = current_hour != self.previous_hour
                 minute_changed = current_minute != self.previous_minute
                 
-                # Simple notifications when time changes
+                # Handle time changes with selected animation mode
+                animation_occurred = False
+                
                 if hour_changed:
-                    self.simple_change(self.previous_hour, current_hour, is_hour=True)
+                    if self.animation_mode == "simple":
+                        self.simple_change(self.previous_hour, current_hour, is_hour=True)
+                    else:  # scroll_down
+                        self.scroll_down_change(self.previous_hour, current_hour, is_hour=True)
+                        animation_occurred = True
                     
                 if minute_changed:
-                    self.simple_change(self.previous_minute, current_minute, is_hour=False)
+                    if self.animation_mode == "simple":
+                        self.simple_change(self.previous_minute, current_minute, is_hour=False)
+                    else:  # scroll_down
+                        self.scroll_down_change(self.previous_minute, current_minute, is_hour=False)
+                        animation_occurred = True
                     
                 # Handle manual flip trigger
                 if self.manual_flip_triggered:
@@ -301,11 +467,12 @@ class RetroClock(MatrixBase):
                 self.previous_hour = current_hour
                 self.previous_minute = current_minute
                 
-                # Draw normal time display
-                self.clear()
-                self.draw_background_and_frame()
-                self.draw_flip_time()
-                self.swap()
+                # Draw normal time display (skip if animation just occurred)
+                if not animation_occurred:
+                    self.clear()
+                    self.draw_background_and_frame()
+                    self.draw_flip_time()
+                    self.swap()
                 
                 # Update every 0.1 seconds for responsive input
                 time.sleep(0.1)
