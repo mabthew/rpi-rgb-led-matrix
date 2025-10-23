@@ -83,6 +83,11 @@ class RetroClock(MatrixBase):
         self.scroll_animation_frames = 20  # Number of frames for scroll animation
         self.scroll_duration = 0.6  # Total duration for scroll animation in seconds
         
+        # Manual test triggers
+        self.test_hour_animation = False
+        self.test_minute_animation = False
+        self.test_simultaneous_animation = False
+        
         # Timezone configuration - Denver/Mountain Time
         self.denver_timezone = timezone(timedelta(hours=-6))  # Mountain Time
         
@@ -485,6 +490,15 @@ class RetroClock(MatrixBase):
                     elif key == b'a' or key == b'A':  # 'A' key to toggle animation mode
                         self.toggle_animation_mode()
                         return True
+                    elif key == b'h' or key == b'H':  # 'H' key to test hour animation
+                        self.test_hour_animation = True
+                        return True
+                    elif key == b'm' or key == b'M':  # 'M' key to test minute animation
+                        self.test_minute_animation = True
+                        return True
+                    elif key == b's' or key == b'S':  # 'S' key to test simultaneous animation
+                        self.test_simultaneous_animation = True
+                        return True
             else:
                 # Unix/Linux implementation
                 if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
@@ -500,6 +514,15 @@ class RetroClock(MatrixBase):
                         return True
                     elif line == 'a' or line == 'A':  # 'A' key to toggle animation mode
                         self.toggle_animation_mode()
+                        return True
+                    elif line == 'h' or line == 'H':  # 'H' key to test hour animation
+                        self.test_hour_animation = True
+                        return True
+                    elif line == 'm' or line == 'M':  # 'M' key to test minute animation
+                        self.test_minute_animation = True
+                        return True
+                    elif line == 's' or line == 'S':  # 'S' key to test simultaneous animation
+                        self.test_simultaneous_animation = True
                         return True
         except:
             # Fallback - no input detection
@@ -539,6 +562,9 @@ class RetroClock(MatrixBase):
         print("   + = Increase brightness")
         print("   - = Decrease brightness")
         print("   A = Toggle animation mode (simple/scroll-down)")
+        print("   H = Test HOUR animation only")
+        print("   M = Test MINUTE animation only") 
+        print("   S = Test SIMULTANEOUS animation (both)")
         print(f"🎬 Current animation mode: {self.animation_mode}")
         
         # Initialize previous time values
@@ -587,8 +613,38 @@ class RetroClock(MatrixBase):
                         self.scroll_down_change(self.previous_minute, current_minute, is_hour=False)
                         animation_occurred = True
                     
-                # Handle manual flip trigger
-                if self.manual_flip_triggered:
+                # Handle manual test triggers
+                if self.test_hour_animation:
+                    print("🕐 Testing HOUR animation")
+                    if self.animation_mode == "scroll_down":
+                        self.scroll_down_change(current_hour, current_hour, is_hour=True)
+                        animation_occurred = True
+                    else:
+                        print("🔄 Hour test (simple mode - no animation)")
+                    self.test_hour_animation = False
+                
+                elif self.test_minute_animation:
+                    print("⏰ Testing MINUTE animation")
+                    if self.animation_mode == "scroll_down":
+                        self.scroll_down_change(current_minute, current_minute, is_hour=False)
+                        animation_occurred = True
+                    else:
+                        print("🔄 Minute test (simple mode - no animation)")
+                    self.test_minute_animation = False
+                
+                elif self.test_simultaneous_animation:
+                    print("🎬 Testing SIMULTANEOUS animation (both hour and minute)")
+                    if self.animation_mode == "scroll_down":
+                        self.scroll_down_change_simultaneous(
+                            current_hour, current_hour,
+                            current_minute, current_minute
+                        )
+                        animation_occurred = True
+                    else:
+                        print("🔄 Simultaneous test (simple mode - no animation)")
+                    self.test_simultaneous_animation = False
+                
+                elif self.manual_flip_triggered:
                     print("🔄 Manual animation triggered - forcing scroll animation for debugging")
                     # Force animation even if time hasn't changed (for debugging)
                     if self.animation_mode == "scroll_down":
