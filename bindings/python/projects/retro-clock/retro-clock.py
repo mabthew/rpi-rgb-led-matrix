@@ -215,7 +215,7 @@ class RetroClock(MatrixBase):
         pass
     
     def scroll_down_change(self, old_text, new_text, is_hour=True):
-        """Animate the changing digit scrolling down out of frame."""
+        """Animate old digit scrolling down out of frame while new digit scrolls down from above."""
         print(f"📜 Scroll animation - {'hour' if is_hour else 'minute'}: {old_text} → {new_text}")
         
         # Define window positions based on which digit is changing
@@ -224,28 +224,37 @@ class RetroClock(MatrixBase):
         else:
             window = {'x': 36, 'y': 8, 'width': 22, 'height': 16}
         
-        # Calculate text positioning within the window
-        text_width = 0
+        # Calculate text positioning within the window for both old and new text
+        old_text_width = 0
         for char in old_text:
             if char != ' ':
-                text_width += self.digit_font.CharacterWidth(ord(char))
+                old_text_width += self.digit_font.CharacterWidth(ord(char))
         
-        text_x = window['x'] + (window['width'] - text_width) // 2
-        text_y = window['y'] + 14  # Baseline position
+        new_text_width = 0
+        for char in new_text:
+            if char != ' ':
+                new_text_width += self.digit_font.CharacterWidth(ord(char))
+        
+        old_text_x = window['x'] + (window['width'] - old_text_width) // 2
+        new_text_x = window['x'] + (window['width'] - new_text_width) // 2
+        baseline_y = window['y'] + 14  # Normal baseline position
         
         # Animate scrolling down
         frame_duration = self.scroll_duration / self.scroll_animation_frames
         
         for frame in range(self.scroll_animation_frames + 1):
             # Calculate vertical offset for this frame
-            scroll_offset = int((frame / self.scroll_animation_frames) * (window['height'] + 5))
+            progress = frame / self.scroll_animation_frames
+            scroll_distance = window['height'] + 8  # Total distance to scroll
+            scroll_offset = int(progress * scroll_distance)
             
             # Clear and redraw the entire display
             self.clear()
             self.draw_background_and_frame()
             
-            # Draw the changing digit(s) at scrolled position
-            current_text_y = text_y + scroll_offset
+            # Calculate positions for old and new text
+            old_text_y = baseline_y + scroll_offset  # Old text scrolls down from normal position
+            new_text_y = baseline_y - scroll_distance + scroll_offset  # New text starts above, scrolls down
             
             # Draw the black window background first
             for x in range(window['x'], window['x'] + window['width']):
@@ -253,15 +262,31 @@ class RetroClock(MatrixBase):
                     if 0 <= x < 64 and 0 <= y < 32:
                         self.set_pixel(x, y, self.window_color)
             
-            # Only draw the text if any part of it might be visible in the window
-            if current_text_y > window['y'] - 20 and current_text_y < window['y'] + window['height'] + 5:
-                # Draw the scrolling text - it will naturally be clipped by the window boundaries
-                current_x = text_x
+            # Draw the old text scrolling down (if still partially visible)
+            if old_text_y > window['y'] - 20 and old_text_y < window['y'] + window['height'] + 5:
+                current_x = old_text_x
                 for char in old_text:
                     if char != ' ':
-                        char_width = self.draw_text(self.digit_font, current_x, current_text_y,
-                                                  self.digit_color, char)
-                        current_x += char_width
+                        # Only draw if the character baseline is within reasonable bounds
+                        if old_text_y >= window['y'] - 5 and old_text_y <= window['y'] + window['height'] + 5:
+                            char_width = self.draw_text(self.digit_font, current_x, old_text_y,
+                                                      self.digit_color, char)
+                            current_x += char_width
+                        else:
+                            current_x += self.digit_font.CharacterWidth(ord(char))
+            
+            # Draw the new text scrolling down from above (if partially visible)
+            if new_text_y > window['y'] - 20 and new_text_y < window['y'] + window['height'] + 5:
+                current_x = new_text_x
+                for char in new_text:
+                    if char != ' ':
+                        # Only draw if the character baseline is within reasonable bounds
+                        if new_text_y >= window['y'] - 5 and new_text_y <= window['y'] + window['height'] + 5:
+                            char_width = self.draw_text(self.digit_font, current_x, new_text_y,
+                                                      self.digit_color, char)
+                            current_x += char_width
+                        else:
+                            current_x += self.digit_font.CharacterWidth(ord(char))
             
             # Draw the non-changing digit in its normal position
             now = self.get_current_time()
@@ -289,7 +314,7 @@ class RetroClock(MatrixBase):
             self.swap()
             time.sleep(frame_duration)
         
-        # After animation, draw the new digit in place
+        # After animation, draw the final state normally
         self.clear()
         self.draw_background_and_frame() 
         self.draw_flip_time()
