@@ -262,10 +262,7 @@ class RetroClock(MatrixBase):
             new_text_y = baseline_y - scroll_distance + scroll_offset  # New text starts above, scrolls down
             
             # Draw the black window background first
-            for x in range(window['x'], window['x'] + window['width']):
-                for y in range(window['y'], window['y'] + window['height']):
-                    if 0 <= x < 64 and 0 <= y < 32:
-                        self.set_pixel(x, y, self.window_color)
+            self.draw_window_background(window)
             
             # Draw the scrolling digits with proper clipping to window boundaries
             self.draw_clipped_text(old_text, old_text_x, old_text_y, window)
@@ -343,16 +340,10 @@ class RetroClock(MatrixBase):
             old_minute_y = baseline_y + scroll_offset
             new_minute_y = baseline_y - scroll_distance + scroll_offset
             
-            # Draw both black window backgrounds
-            for x in range(hour_window['x'], hour_window['x'] + hour_window['width']):
-                for y in range(hour_window['y'], hour_window['y'] + hour_window['height']):
-                    if 0 <= x < 64 and 0 <= y < 32:
-                        self.set_pixel(x, y, self.window_color)
-            
-            for x in range(minute_window['x'], minute_window['x'] + minute_window['width']):
-                for y in range(minute_window['y'], minute_window['y'] + minute_window['height']):
-                    if 0 <= x < 64 and 0 <= y < 32:
-                        self.set_pixel(x, y, self.window_color)
+            # Draw both black window backgrounds using the same method as individual animations
+            # This ensures consistent window sizing
+            self.draw_window_background(hour_window)
+            self.draw_window_background(minute_window)
             
             # Draw the scrolling digits for both windows with clipping
             self.draw_clipped_text(old_hour, old_hour_x, old_hour_y, hour_window)
@@ -381,6 +372,13 @@ class RetroClock(MatrixBase):
         self.draw_flip_time()
         self.swap()
     
+    def draw_window_background(self, window):
+        """Draw the black background for a digit window with exact dimensions."""
+        for x in range(window['x'], window['x'] + window['width']):
+            for y in range(window['y'], window['y'] + window['height']):
+                if 0 <= x < 64 and 0 <= y < 32:
+                    self.set_pixel(x, y, self.window_color)
+
     def draw_clipped_text(self, text, text_x, text_y, window):
         """Draw text with pixel-perfect clipping to window boundaries."""
         # Only draw if the text might be visible in the window area
