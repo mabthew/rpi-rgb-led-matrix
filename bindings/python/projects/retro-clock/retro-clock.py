@@ -116,13 +116,13 @@ class RetroClock(MatrixBase):
         # Draw the digit windows and digits
         self.draw_digit_windows(hour, minute)
         
-        # Draw AM indicator (like the original - small text on orange background)
+        # Draw AM/PM indicator in upper left corner of hour window
         if self.show_ampm:
             ampm = now.strftime("%p").lower()  # Use lowercase "am" like the original
             
-            # Position AM/PM in upper left area on orange background
-            ampm_x = 4
-            ampm_y = 7
+            # Position AM/PM in upper left corner of the hour window
+            ampm_x = 8  # Just inside the hour window left edge
+            ampm_y = 12  # Upper area of the hour window
             
             current_x = ampm_x
             for char in ampm:
@@ -279,11 +279,11 @@ class RetroClock(MatrixBase):
                 # Draw hour normally (not changing)  
                 self.draw_static_digit(current_hour, is_hour=True)
             
-            # Draw AM/PM indicator
+            # Draw AM/PM indicator in upper left corner of hour window
             if self.show_ampm:
                 ampm = now.strftime("%p").lower()
-                ampm_x = 4
-                ampm_y = 7
+                ampm_x = 8  # Just inside the hour window left edge
+                ampm_y = 12  # Upper area of the hour window
                 current_x = ampm_x
                 for char in ampm:
                     char_width = self.draw_text(self.ampm_font, current_x, ampm_y,
@@ -379,12 +379,12 @@ class RetroClock(MatrixBase):
             # Only clip areas OUTSIDE the windows, not the window borders themselves
             self.clip_outside_windows([hour_window, minute_window])
             
-            # Draw AM/PM indicator
+            # Draw AM/PM indicator in upper left corner of hour window
             if self.show_ampm:
                 now = self.get_current_time()
                 ampm = now.strftime("%p").lower()
-                ampm_x = 4
-                ampm_y = 7
+                ampm_x = 8  # Just inside the hour window left edge
+                ampm_y = 12  # Upper area of the hour window
                 current_x = ampm_x
                 for char in ampm:
                     char_width = self.draw_text(self.ampm_font, current_x, ampm_y,
