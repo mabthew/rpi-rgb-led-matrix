@@ -27,7 +27,10 @@ import sys
 import os
 import argparse
 import json
+import threading
 from datetime import datetime, timezone, timedelta
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import urllib.parse as urlparse
 
 try:
     import msvcrt  # Windows
@@ -42,6 +45,89 @@ from matrix_base import MatrixBase
 from font_manager import FontManager
 from color_palette import ColorPalette
 from config_manager import ConfigManager
+
+
+class RetroClockHTTPHandler(BaseHTTPRequestHandler):
+    """HTTP request handler for retro clock API endpoints."""
+    
+    def __init__(self, clock_instance, *args, **kwargs):
+        self.clock = clock_instance
+        super().__init__(*args, **kwargs)
+    
+    def do_GET(self):
+        """Handle GET requests."""
+        parsed_path = urlparse.urlparse(self.path)
+        path = parsed_path.path
+        
+        if path == '/config':
+            self.send_json_response(self.clock.get_current_config())
+        elif path == '/status':
+            self.send_json_response({
+                'running': self.clock.running,
+                'current_time': self.clock.get_current_time().strftime("%I:%M %p").strip(),
+                'theme_name': self.clock.color_themes[self.clock.current_theme]['name']
+            })
+        elif path == '/themes':
+            themes = {k: v['name'] for k, v in self.clock.color_themes.items()}
+            self.send_json_response(themes)
+        else:
+            self.send_error(404, "Endpoint not found")
+    
+    def do_POST(self):
+        """Handle POST requests."""
+        parsed_path = urlparse.urlparse(self.path)
+        path = parsed_path.path
+        
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length > 0:
+                post_data = self.rfile.read(content_length).decode('utf-8')
+                data = json.loads(post_data)
+            else:
+                data = {}
+            
+            if path == '/config':
+                self.clock.update_configuration(data)
+                self.send_json_response({'success': True, 'message': 'Configuration updated'})
+            elif path == '/animate':
+                animation_type = data.get('type', 'both')  # hour, minute, simultaneous, both
+                self.clock.trigger_manual_animation(animation_type)
+                self.send_json_response({'success': True, 'message': f'Animation triggered: {animation_type}'})
+            elif path == '/theme':
+                if 'theme' in data and data['theme'] in self.clock.color_themes:
+                    self.clock.update_configuration({'color_theme': data['theme']})
+                    self.send_json_response({'success': True, 'message': f'Theme changed to {data["theme"]}'})
+                else:
+                    self.send_json_response({'success': False, 'message': 'Invalid theme'}, 400)
+            else:
+                self.send_error(404, "Endpoint not found")
+                
+        except json.JSONDecodeError:
+            self.send_error(400, "Invalid JSON")
+        except Exception as e:
+            self.send_error(500, str(e))
+    
+    def send_json_response(self, data, status=200):
+        """Send JSON response."""
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+        self.wfile.write(json.dumps(data).encode('utf-8'))
+    
+    def do_OPTIONS(self):
+        """Handle CORS preflight requests."""
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+    
+    def log_message(self, format, *args):
+        """Override to reduce log noise."""
+        pass
 
 
 class RetroClock(MatrixBase):
@@ -130,6 +216,11 @@ class RetroClock(MatrixBase):
         self.test_hour_animation = False
         self.test_minute_animation = False
         self.test_simultaneous_animation = False
+        
+        # Real-time configuration control
+        self.config_lock = threading.Lock()
+        self.force_update = False
+        self.running = True
         
         # Timezone configuration - Denver/Mountain Time
         self.denver_timezone = timezone(timedelta(hours=-6))  # Mountain Time
@@ -619,6 +710,70 @@ class RetroClock(MatrixBase):
         theme_name = self.color_themes[self.current_theme]['name']
         print(f"🎨 Color theme: {theme_name}")
     
+    def update_configuration(self, updates):
+        """Update configuration in real-time."""
+        with self.config_lock:
+            updated = False
+            
+            if 'color_theme' in updates and updates['color_theme'] in self.color_themes:
+                self.current_theme = updates['color_theme']
+                self.update_colors()
+                print(f"🎨 Color theme updated: {self.color_themes[self.current_theme]['name']}")
+                updated = True
+            
+            if 'animation_mode' in updates and updates['animation_mode'] in ['simple', 'scroll_down']:
+                self.animation_mode = updates['animation_mode']
+                print(f"🎬 Animation mode updated: {self.animation_mode}")
+                updated = True
+            
+            if 'show_ampm' in updates:
+                self.show_ampm = bool(updates['show_ampm'])
+                print(f"🕐 AM/PM display: {'enabled' if self.show_ampm else 'disabled'}")
+                updated = True
+            
+            if 'brightness' in updates:
+                brightness = max(1, min(100, int(updates['brightness'])))
+                self.set_brightness(brightness)
+                print(f"💡 Brightness updated: {brightness}%")
+                updated = True
+            
+            if updated:
+                self.force_update = True
+    
+    def get_current_config(self):
+        """Get current configuration as dictionary."""
+        return {
+            'color_theme': self.current_theme,
+            'animation_mode': self.animation_mode,
+            'show_ampm': self.show_ampm,
+            'brightness': self.matrix.brightness if hasattr(self.matrix, 'brightness') else 80
+        }
+    
+    def trigger_manual_animation(self, animation_type='both'):
+        """Trigger manual animations via API."""
+        with self.config_lock:
+            if animation_type == 'hour':
+                self.test_hour_animation = True
+            elif animation_type == 'minute':
+                self.test_minute_animation = True
+            elif animation_type == 'simultaneous':
+                self.test_simultaneous_animation = True
+            else:  # both (default)
+                self.manual_flip_triggered = True
+    
+    def start_api_server(self, port=8080):
+        """Start HTTP API server in a separate thread."""
+        try:
+            handler = lambda *args, **kwargs: RetroClockHTTPHandler(self, *args, **kwargs)
+            self.api_server = HTTPServer(('0.0.0.0', port), handler)
+            self.api_thread = threading.Thread(target=self.api_server.serve_forever, daemon=True)
+            self.api_thread.start()
+            print(f"🌐 API server started on port {port}")
+            print(f"📡 API endpoints available at http://[pi-ip]:{port}/")
+        except Exception as e:
+            print(f"⚠️ Could not start API server: {e}")
+            self.api_server = None
+
     def run(self):
         """Main display loop with flip animations."""
         print("🕰️  Starting Authentic Twemco-Style Clock - Press CTRL-C to stop")
@@ -634,6 +789,9 @@ class RetroClock(MatrixBase):
         print("   S = Test SIMULTANEOUS animation (both)")
         print(f"🎬 Current animation mode: {self.animation_mode}")
         print(f"🎨 Current color theme: {self.color_themes[self.current_theme]['name']}")
+        
+        # Start API server
+        self.start_api_server()
         
         # Initialize previous time values
         now = self.get_current_time()
@@ -728,6 +886,12 @@ class RetroClock(MatrixBase):
                 self.previous_hour = current_hour
                 self.previous_minute = current_minute
                 
+                # Check for forced updates (from API)
+                with self.config_lock:
+                    if self.force_update:
+                        animation_occurred = False  # Force redraw
+                        self.force_update = False
+
                 # Draw normal time display (skip if animation just occurred)
                 if not animation_occurred:
                     self.clear()
@@ -741,6 +905,9 @@ class RetroClock(MatrixBase):
         except KeyboardInterrupt:
             print("\n⏰️  Clock stopped - Time stands still!")
         finally:
+            self.running = False
+            if hasattr(self, 'api_server') and self.api_server:
+                self.api_server.shutdown()
             self.clear()
 
 
